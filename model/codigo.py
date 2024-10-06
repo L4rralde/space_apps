@@ -10,9 +10,9 @@ from obspy import read
 from scipy import signal
 
 
-cat_directory = f"{os.environ["SPACE"]}/data/lunar/training/catalogs/"
+cat_directory = f"{os.environ['SPACE']}/data/lunar/training/catalogs/"
 cat_file = cat_directory + 'apollo12_catalog_GradeA_final.csv'
-data_directory = f"{os.environ["SPACE"]}/data/lunar/training/data/S12_GradeA/"
+data_directory = f"{os.environ['SPACE']}/data/lunar/training/data/S12_GradeA/"
 cat = pd.read_csv(cat_file)
 
 def process_data_max(data, window_max, window_filter):
