@@ -17,6 +17,21 @@ Before running any app/script, run the following script:
 source scripts/set_space.sh
 ```
 
+### Install
+
+If your environment met the requirements:
+
+```sh
+git clone https://github.com/L4rralde/space_apps.git
+cd space_apps
+pip install -r requirements.txt
+```
+
+## Or try on Binder
+
+Our project has been prepared to run on Binder. By opting this option, it is possible to launch it on a web browser with no need of any prior installation. [Go and try it yourself](https://mybinder.org/v2/gh/L4rralde/space_apps/HEAD).
+
+
 ### Contributors
 - Alejandro Negrete
 - Emmanuel Larralde
