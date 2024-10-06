@@ -1,12 +1,13 @@
-# Import libraries
+import os
+from datetime import datetime, timedelta
+from copy import copy
+
 import numpy as np
 import pandas as pd
-from obspy import read
-from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import os
-from scipy import signal
 from matplotlib import cm
+from obspy import read
+from scipy import signal
 
 
 cat_directory = f"{os.environ["SPACE"]}/data/lunar/training/catalogs/"
@@ -14,7 +15,6 @@ cat_file = cat_directory + 'apollo12_catalog_GradeA_final.csv'
 data_directory = f"{os.environ["SPACE"]}/data/lunar/training/data/S12_GradeA/"
 cat = pd.read_csv(cat_file)
 
-## COmbinado
 def process_data_max(data, window_max, window_filter):
     max_data = np.zeros(len(data))
     for i in range(len(data) - window_max):
@@ -157,7 +157,7 @@ class Model:
         self.prediction.tr_filt = tr_filt
         self.prediction.tr_times_filt = tr_times_filt
         self.prediction.tr_data_filt = tr_data_filt
-        return self.prediction
+        return copy(self.prediction)
 
     def transform(self, percentile: float = 0.95) -> "Prediction":
         tr_times_filt = self.prediction.tr_times_filt
@@ -173,7 +173,7 @@ class Model:
         self.prediction.sxx = sxx
         self.prediction.power = power
         self.prediction.threshold = threshold
-        return self.prediction
+        return copy(self.prediction)
 
     def get_intervals(self) -> "Prediction":
         self.prediction.state = "INTERVALS"
@@ -182,7 +182,7 @@ class Model:
             self.prediction.threshold,
             20
         )
-        return self.prediction
+        return copy(self.prediction)
 
     def refine_intervals(self) -> "Prediction":
         self.prediction.relevant_times = refine_intervals_forward(
@@ -190,7 +190,7 @@ class Model:
             self.prediction.relevant_times,
             5e-12
         )
-        return self.prediction
+        return copy(self.prediction)
 
     def refine_intervals_backward(self) ->  "Prediction":
         variance_index = get_backward_index(
@@ -204,7 +204,7 @@ class Model:
             relevant_points += interval[1] - interval[0] + 1
         self.prediction.state = "BACKWARD"
         self.prediction.variance_index = variance_index
-        return self.prediction
+        return copy(self.prediction)
 
     def predict_pipeline(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
         self.open(mseed_file)
@@ -212,6 +212,7 @@ class Model:
         self.get_intervals()
         self.refine_intervals()
         self.refine_intervals_backward()
+        return copy(self.prediction)
 
     def predict(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
         if not os.path.exists(mseed_file):
