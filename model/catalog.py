@@ -1,0 +1,33 @@
+import os
+import sys
+import glob
+
+import pandas as pd
+import numpy as np
+
+from codigo import Model
+
+
+def main(args):
+    print(args)
+    path = os.path.realpath(args[1])
+    model = Model()
+    mseed_glob = glob.glob(f"{path}/*.mseed")
+    d = dict()
+    for mseed in mseed_glob:
+        prediction = model.predict(mseed)
+        bname = ''.join(os.path.basename(mseed).split(".mseed")[0:-1])
+        try:
+            d[bname] = int(prediction.t[min(prediction.variance_index)])
+        except:
+            d[bname] = np.nan
+    d_to_df = {
+        "filename": d.keys(),
+        "time_rel(sec)": d.values()
+    }
+    df = pd.DataFrame.from_dict(d_to_df)
+    print(df)
+
+
+if __name__ == "__main__":
+    main(sys.argv)
