@@ -93,7 +93,7 @@ def get_backward_index(relevant_times, window, processed_data):
     variance_index = []
     for time in relevant_times:
         variance = []
-        for i in range(time[0]-20,time[0], 1):
+        for i in range(time[0]-5,time[0], 1):
             variance.append([np.var(processed_data[i:i+window]),i])
         variance_index.append(max(variance)[1])
     
@@ -108,6 +108,7 @@ def rel_time_to_abs_time(rel_time, starttime):
 
 class Prediction:
     def __init__(self) -> None:
+        self.mseed_file = None
         self.test_filename = None
         self.arrival = None
         self.t = None
@@ -119,22 +120,111 @@ class Prediction:
         self.threshold = None
         self.tr_data_filt = None
         self.tr_times_filt = None
+        self.tr_filt = None
+        self.state: str = "EMPTY"
+
+    def __eq__(self, other: object) -> bool:
+        attrs = [
+            "t", "f", "sxx", "power", "relevant_times", "variance_index",
+            "threshold", "tr_data_filt", "tr_times_filt", "tr_filt"
+        ]
+        for attr in attrs:
+            mine = self.__getattribute__(attr)
+            yours = other.__getattribute__(attr)
+            mismatch = np.array(mine != yours)
+            if mismatch.any():
+                print(f"{attr} mismatch")
+        return True
 
 class Model:
     def __init__(self) -> None:
         self.prediction = Prediction()
 
-    def predict(self, mseed_file, arrival_time=None) -> None:
+    def clear(self) -> None:
+        self.prediction = Prediction()
+        self._mseed_file: str = ""
+
+    def open(self, mseed_file) -> "Prediction":
+        if not os.path.exists(mseed_file):
+            raise Exception("NOT SUCH FILE")
+        st_filt = read(mseed_file)
+
+        #st_filt.filter('bandpass',freqmin=minfreq,freqmax=maxfreq)
+        tr_filt = st_filt.traces[0].copy()
+        tr_times_filt = tr_filt.times()
+        tr_data_filt = tr_filt.data
+        self.prediction.state = "OPEN"
+        self.prediction.tr_filt = tr_filt
+        self.prediction.tr_times_filt = tr_times_filt
+        self.prediction.tr_data_filt = tr_data_filt
+        return self.prediction
+
+    def transform(self, percentile: float = 0.95) -> "Prediction":
+        tr_times_filt = self.prediction.tr_times_filt
+        tr_data_filt = self.prediction.tr_data_filt
+        tr_filt = self.prediction.tr_filt
+        f, t, sxx = signal.spectrogram(tr_data_filt, tr_filt.stats.sampling_rate, mode='magnitude')
+        # Sum over all sxx values to get the power
+        power = np.mean(sxx, axis=0)
+        threshold = np.percentile(power, percentile)
+        self.prediction.state = "TRANSFORM"
+        self.prediction.f = f
+        self.prediction.t = t
+        self.prediction.sxx = sxx
+        self.prediction.power = power
+        self.prediction.threshold = threshold
+        return self.prediction
+
+    def get_intervals(self) -> "Prediction":
+        self.prediction.state = "INTERVALS"
+        self.prediction.relevant_times = good_intervals(
+            self.prediction.power, 
+            self.prediction.threshold,
+            20
+        )
+        return self.prediction
+
+    def refine_intervals(self) -> "Prediction":
+        self.prediction.relevant_times = refine_intervals_forward(
+            self.prediction.power,
+            self.prediction.relevant_times,
+            5e-12
+        )
+        return self.prediction
+
+    def refine_intervals_backward(self) ->  "Prediction":
+        variance_index = get_backward_index(
+            self.prediction.relevant_times,
+            3,
+            self.prediction.power
+        )
+        total_points = len(self.prediction.power)
+        relevant_points = 0
+        for interval in self.prediction.relevant_times:
+            relevant_points += interval[1] - interval[0] + 1
+        self.prediction.state = "BACKWARD"
+        self.prediction.variance_index = variance_index
+        return self.prediction
+
+    def predict_pipeline(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
+        self.open(mseed_file)
+        self.transform(percentile)
+        self.get_intervals()
+        self.refine_intervals()
+        self.refine_intervals_backward()
+
+    def predict(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
         if not os.path.exists(mseed_file):
             raise Exception("NOT SUCH FILE")
 
-        relevant_points = 0
-        total_points = 0
         st = read(mseed_file)
         # This is how you get the data and the time, which is in seconds
         tr = st.traces[0].copy()
         tr_times = tr.times()
         tr_data = tr.data
+
+        relevant_points = 0
+        total_points = 0
 
         # Start time of trace (another way to get the relative arrival time using datetime)
         starttime = tr.stats.starttime.datetime
@@ -156,7 +246,8 @@ class Model:
         # Sum over all sxx values to get the power
         power = np.mean(sxx, axis=0)
 
-        threshold = np.percentile(power, 95)
+
+        threshold = np.percentile(power, percentile)
 
         relevant_times = good_intervals(power, threshold, 20)
         relevant_times = refine_intervals_forward(power, relevant_times, 5e-12)
@@ -177,6 +268,7 @@ class Model:
         self.prediction.threshold = threshold
         self.prediction.relevant_times = relevant_times
         self.prediction.variance_index = variance_index
+        self.prediction.tr_filt = tr_filt
         self.prediction.tr_data_filt = tr_data_filt
         self.prediction.tr_times_filt = tr_times_filt
         return self.prediction
@@ -249,6 +341,11 @@ class Model:
 
 if __name__ == "__main__":
     predictor = Model()
+    predictor_pipe = Model()
+    if "lunar" in cat_directory:
+        percentile = 95
+    else:
+        percentile = 65
     for i in range(75):
         print(f"{i}/75")
         row = cat.iloc[i]
@@ -256,9 +353,16 @@ if __name__ == "__main__":
         test_filename = row.filename
 
         mseed_file = f'{data_directory}{test_filename}.mseed'
-        try:
-            predictor.predict(mseed_file, arrival_time)
-            predictor.plot()
-        except Exception as e:
-            print(e)
-            continue
+        predictor.predict(
+            mseed_file, 
+            arrival_time=arrival_time,
+            percentile=percentile
+        )
+        predictor_pipe.predict_pipeline(
+            mseed_file,
+            arrival_time=arrival_time,
+            percentile=percentile
+        )
+        if(predictor.prediction != predictor_pipe.prediction):
+            break
+        predictor_pipe.plot()
