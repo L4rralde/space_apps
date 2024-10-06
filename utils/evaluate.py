@@ -6,7 +6,7 @@ import numpy as np
 from utils import CATALOGS_PATH, CATALOG_PATH
 
 
-K = 20
+K = 400
 
 def calc_metrics(model_result, ground_truth) -> None:
     model_result["result"] =  model_result["time_rel(sec)"]
@@ -18,9 +18,12 @@ def calc_metrics(model_result, ground_truth) -> None:
     model_result["false_negative"] = model_result['result'].isna() &\
                                     model_result['truth'].notna()
 
-def main() -> None:
-    ground_truth = pd.read_csv(CATALOG_PATH)
-    model_result = pd.read_csv(f"{CATALOGS_PATH}/fake.csv")
+def main(args) -> None:
+    ground_truth = pd.read_csv(args[1])
+    model_result = pd.read_csv(args[2])
+    ground_truth = ground_truth.sort_values(by=["filename"]).set_index(["filename"])
+    model_result = model_result.sort_values(by=["filename"]).set_index(["filename"])
+
     calc_metrics(model_result, ground_truth)
     n = len(model_result.index) - 1.0
     tp = model_result["true_positive"].sum()/n
@@ -33,6 +36,7 @@ def main() -> None:
     print(f"True Negative ratio = {tn}")
     print(f"False Positive ratio = {fn}")
     print(f"Accuracy = {accuracy}")
+    model_result.to_csv("foo.csv")
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
