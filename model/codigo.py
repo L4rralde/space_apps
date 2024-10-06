@@ -120,16 +120,12 @@ class Model:
     def __init__(self) -> None:
         self.prediction = Prediction()
 
-    def predict(self, i) -> None:
-        row = cat.iloc[i]
-        relevant_points = 0
-        total_points = 0
-        arrival_time = datetime.strptime(row['time_abs(%Y-%m-%dT%H:%M:%S.%f)'],'%Y-%m-%dT%H:%M:%S.%f')
-        test_filename = row.filename
-        mseed_file = f'{data_directory}{test_filename}.mseed'
+    def predict(self, mseed_file, arrival_time=None) -> None:
         if not os.path.exists(mseed_file):
             raise Exception("NOT SUCH FILE")
-    
+
+        relevant_points = 0
+        total_points = 0
         st = read(mseed_file)
         # This is how you get the data and the time, which is in seconds
         tr = st.traces[0].copy()
@@ -138,7 +134,10 @@ class Model:
 
         # Start time of trace (another way to get the relative arrival time using datetime)
         starttime = tr.stats.starttime.datetime
-        arrival = (arrival_time - starttime).total_seconds()
+        if arrival_time is not None:
+            arrival = arrival = (arrival_time - starttime).total_seconds()
+        else:
+            arrival =  None
         # Create a vector for the absolute time
         tr_times_dt = rel_time_to_abs_time(tr_times, starttime)
         
@@ -167,7 +166,7 @@ class Model:
     
         self.prediction.t = t
         self.prediction.power = power
-        self.prediction.test_filename = test_filename
+        self.prediction.test_filename = os.path.basename(mseed_file)
         self.prediction.arrival = arrival
         self.prediction.threshold = threshold
         self.prediction.relevant_times = relevant_times
@@ -193,7 +192,8 @@ class Model:
         ax.set_xlabel('Time [sec]')
         ax.set_title(f'{test_filename} Power', fontweight='bold')
         # Add the arrival time
-        ax.axvline(x = arrival, color='red',label='Rel. Arrival')
+        if self.prediction.arrival is not None:
+            ax.axvline(x = arrival, color='red',label='Rel. Arrival')
         
         #ax.set_ylim([0, 1e-19])
         # for index in max_index:
@@ -216,9 +216,15 @@ class Model:
 if __name__ == "__main__":
     predictor = Model()
     for i in range(75):
-        print(i)
+        print(f"{i}/75")
+        row = cat.iloc[i]
+        arrival_time = datetime.strptime(row['time_abs(%Y-%m-%dT%H:%M:%S.%f)'],'%Y-%m-%dT%H:%M:%S.%f')
+        test_filename = row.filename
+
+        mseed_file = f'{data_directory}{test_filename}.mseed'
         try:
-            predictor.predict(i)
+            predictor.predict(mseed_file, arrival_time)
             predictor.plot()
-        except:
+        except Exception as e:
+            print(e)
             continue
