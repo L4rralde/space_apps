@@ -9,16 +9,19 @@ from codigo import Model
 
 
 def main(args):
-    print(args)
     path = os.path.realpath(args[1])
     model = Model()
     mseed_glob = glob.glob(f"{path}/*.mseed")
     d = dict()
     for mseed in mseed_glob:
-        prediction = model.predict(mseed)
+        if "mars" in mseed:
+            percentile = 65
+        else:
+            percentile = 95
+        prediction = model.predict_pipeline(mseed, percentile = percentile)
         bname = ''.join(os.path.basename(mseed).split(".mseed")[0:-1])
         try:
-            d[bname] = int(prediction.t[min(prediction.variance_index)])
+            d[bname] = prediction.min_variance
         except:
             d[bname] = np.nan
     d_to_df = {
@@ -26,7 +29,8 @@ def main(args):
         "time_rel(sec)": d.values()
     }
     df = pd.DataFrame.from_dict(d_to_df)
-    print(df)
+    df.sort_values(by=["filename"], inplace=True)
+    df.to_csv(f"{os.path.basename(os.path.realpath(args[1]))}.csv")
 
 
 if __name__ == "__main__":
