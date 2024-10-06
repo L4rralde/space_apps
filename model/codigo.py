@@ -8,6 +8,12 @@ import os
 from scipy import signal
 from matplotlib import cm
 
+
+cat_directory = f"{os.environ["SPACE"]}/data/lunar/training/catalogs/"
+cat_file = cat_directory + 'apollo12_catalog_GradeA_final.csv'
+data_directory = f"{os.environ["SPACE"]}/data/lunar/training/data/S12_GradeA/"
+cat = pd.read_csv(cat_file)
+
 ## COmbinado
 def process_data_max(data, window_max, window_filter):
     max_data = np.zeros(len(data))
@@ -88,21 +94,29 @@ def rel_time_to_abs_time(rel_time, starttime):
         tr_times_dt.append(starttime + timedelta(seconds=tr_val))
     return tr_times_dt
 
-cat_directory = './data/lunar/training/catalogs/'
-cat_file = cat_directory + 'apollo12_catalog_GradeA_final.csv'
-cat = pd.read_csv(cat_file)
 
-relevant_points = 0
-total_points = 0
+class Prediction:
+    def __init__(self) -> None:
+        self.test_filename = None
+        self.arrival = None
+        self.t = None
+        self.power = None
+        self.relevant_times = None
+        self.max_index = None
+        self.threshold = None
 
-for i in range(0, len(cat)):
-    try:
+class Model:
+    def __init__(self) -> None:
+        self.prediction = Prediction()
+
+    def predict(self, i) -> None:
         row = cat.iloc[i]
+        relevant_points = 0
+        total_points = 0
         arrival_time = datetime.strptime(row['time_abs(%Y-%m-%dT%H:%M:%S.%f)'],'%Y-%m-%dT%H:%M:%S.%f')
         test_filename = row.filename
-
-        data_directory = './data/lunar/training/data/S12_GradeA/'
         mseed_file = f'{data_directory}{test_filename}.mseed'
+    
         st = read(mseed_file)
         # This is how you get the data and the time, which is in seconds
         tr = st.traces[0].copy()
@@ -114,7 +128,7 @@ for i in range(0, len(cat)):
         arrival = (arrival_time - starttime).total_seconds()
         # Create a vector for the absolute time
         tr_times_dt = rel_time_to_abs_time(tr_times, starttime)
-
+        
         # Going to create a separate trace for the filter data
         st_filt = st.copy()
         #st_filt.filter('bandpass',freqmin=minfreq,freqmax=maxfreq)
@@ -131,10 +145,10 @@ for i in range(0, len(cat)):
         relevant_times = good_intervals(power, threshold, 20)
         relevant_times = refine_intervals_forward(power, relevant_times, 5e-12)
         #relevant_times_backward = refine_intervals_backward(power, relevant_times_forward, 1e-12)
+
         total_points += len(power)
         for interval in relevant_times:
             relevant_points += interval[1] - interval[0] + 1
-
 
         # # Asignamos los indices de forward a relevant_times[i][1] 
         # cont = 0
@@ -152,9 +166,27 @@ for i in range(0, len(cat)):
                 sum_power.append([np.sum(power[i:i+sum_interval]),i])
             # Donde hallemos el maximo, extraemos el indice de la tupla (suma, indice)
             max_index.append(max(sum_power)[1])
-        
-        # Initialize figure
+    
+        self.prediction.t = t
+        self.prediction.power = power
+        self.prediction.test_filename = test_filename
+        self.prediction.arrival = arrival
+        self.prediction.max_index = max_index
+        self.prediction.threshold = threshold
+        self.prediction.relevant_times = relevant_times
+        return self.prediction
+
+
+    def plot(self) -> None:
         fig,ax = plt.subplots(1,1,figsize=(10,3))
+
+        t = self.prediction.t
+        power = self.prediction.power
+        test_filename = self.prediction.test_filename
+        arrival = self.prediction.arrival
+        max_index = self.prediction.max_index
+        threshold = self.prediction.threshold
+        relevant_times = self.prediction.relevant_times
 
         # Plot the power
         ax.plot(t, power)
@@ -177,8 +209,11 @@ for i in range(0, len(cat)):
             ax.axvline(x=t[time[1]], c='purple', label='Relevant Time')
         ax.legend(loc='upper left')
         # Guardamos la figura
-        fig.savefig(f'./data/lunar/training/figures/{test_filename}_power.png')
+        fig.savefig(f'{test_filename}_power.png')
         plt.close(fig)
-    except:
-        continue
-print("El porcentaje de puntos relevantes es: ", relevant_points/total_points)
+
+
+if __name__ == "__main__":
+    predictor = Model()
+    predictor.predict(1)
+    predictor.plot()
