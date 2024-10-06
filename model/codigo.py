@@ -88,6 +88,17 @@ def refine_intervals_forward(processed_data, relevant_times, tol):
 
     return refined_times
 
+
+def get_backward_index(relevant_times, window, processed_data):
+    variance_index = []
+    for time in relevant_times:
+        variance = []
+        for i in range(time[0]-20,time[0], 1):
+            variance.append([np.var(processed_data[i:i+window]),i])
+        variance_index.append(max(variance)[1])
+    
+    return variance_index
+
 def rel_time_to_abs_time(rel_time, starttime):
     tr_times_dt = []
     for tr_val in rel_time:
@@ -102,7 +113,7 @@ class Prediction:
         self.t = None
         self.power = None
         self.relevant_times = None
-        self.max_index = None
+        self.variance_index = None
         self.threshold = None
 
 class Model:
@@ -116,6 +127,8 @@ class Model:
         arrival_time = datetime.strptime(row['time_abs(%Y-%m-%dT%H:%M:%S.%f)'],'%Y-%m-%dT%H:%M:%S.%f')
         test_filename = row.filename
         mseed_file = f'{data_directory}{test_filename}.mseed'
+        if not os.path.exists(mseed_file):
+            raise Exception("NOT SUCH FILE")
     
         st = read(mseed_file)
         # This is how you get the data and the time, which is in seconds
@@ -145,35 +158,20 @@ class Model:
         relevant_times = good_intervals(power, threshold, 20)
         relevant_times = refine_intervals_forward(power, relevant_times, 5e-12)
         #relevant_times_backward = refine_intervals_backward(power, relevant_times_forward, 1e-12)
+        variance_index = get_backward_index(relevant_times, 3, power)
 
         total_points += len(power)
         for interval in relevant_times:
             relevant_points += interval[1] - interval[0] + 1
 
-        # # Asignamos los indices de forward a relevant_times[i][1] 
-        # cont = 0
-        # for foward in relevant_times_forward:
-        #     relevant_times[cont][1] = foward[1]
-        #     cont += 1
-            
-        # Sumaremos en intervalos de 10 segundos
-        sum_interval = 50
-        
-        max_index = []
-        for i_min, i_max in relevant_times:
-            sum_power = []
-            for i in range(i_min-50, i_max, 1):
-                sum_power.append([np.sum(power[i:i+sum_interval]),i])
-            # Donde hallemos el maximo, extraemos el indice de la tupla (suma, indice)
-            max_index.append(max(sum_power)[1])
     
         self.prediction.t = t
         self.prediction.power = power
         self.prediction.test_filename = test_filename
         self.prediction.arrival = arrival
-        self.prediction.max_index = max_index
         self.prediction.threshold = threshold
         self.prediction.relevant_times = relevant_times
+        self.prediction.variance_index = variance_index
         return self.prediction
 
 
@@ -184,7 +182,7 @@ class Model:
         power = self.prediction.power
         test_filename = self.prediction.test_filename
         arrival = self.prediction.arrival
-        max_index = self.prediction.max_index
+        variance_index = self.prediction.variance_index
         threshold = self.prediction.threshold
         relevant_times = self.prediction.relevant_times
 
@@ -198,9 +196,11 @@ class Model:
         ax.axvline(x = arrival, color='red',label='Rel. Arrival')
         
         #ax.set_ylim([0, 1e-19])
-        for index in max_index:
-            ax.axvline(x = t[index], color='blue',label='Max Power', linestyle='--')
-        
+        # for index in max_index:
+        #     ax.axvline(x = t[index], color='blue',label='Max Power', linestyle='--')
+        for index in variance_index:
+            ax.axvline(x = t[index], color='orange',label='Max Variance', linestyle='--')
+
         ax.axhline(y=threshold, c='green', label='95th Percentile')
         
         # Plot the relevant times
@@ -215,5 +215,10 @@ class Model:
 
 if __name__ == "__main__":
     predictor = Model()
-    predictor.predict(1)
-    predictor.plot()
+    for i in range(75):
+        print(i)
+        try:
+            predictor.predict(i)
+            predictor.plot()
+        except:
+            continue
