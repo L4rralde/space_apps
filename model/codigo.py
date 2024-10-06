@@ -111,10 +111,14 @@ class Prediction:
         self.test_filename = None
         self.arrival = None
         self.t = None
+        self.f = None
+        self.sxx = None
         self.power = None
         self.relevant_times = None
         self.variance_index = None
         self.threshold = None
+        self.tr_data_filt = None
+        self.tr_times_filt = None
 
 class Model:
     def __init__(self) -> None:
@@ -165,33 +169,35 @@ class Model:
 
     
         self.prediction.t = t
+        self.prediction.f = f
+        self.prediction.sxx = sxx
         self.prediction.power = power
         self.prediction.test_filename = os.path.basename(mseed_file)
         self.prediction.arrival = arrival
         self.prediction.threshold = threshold
         self.prediction.relevant_times = relevant_times
         self.prediction.variance_index = variance_index
+        self.prediction.tr_data_filt = tr_data_filt
+        self.prediction.tr_times_filt = tr_times_filt
         return self.prediction
 
 
     def plot(self) -> None:
-        fig,ax = plt.subplots(1,1,figsize=(10,3))
-
         t = self.prediction.t
+        f = self.prediction.f
         power = self.prediction.power
         test_filename = self.prediction.test_filename
         arrival = self.prediction.arrival
         variance_index = self.prediction.variance_index
         threshold = self.prediction.threshold
         relevant_times = self.prediction.relevant_times
+        sxx = self.prediction.sxx
+        tr_data_filt = self.prediction.tr_data_filt
+        tr_times_filt = self.prediction.tr_times_filt
 
-        # Plot the power
-        ax.plot(t, power)
-
-        ax.set_ylabel('Power')
-        ax.set_xlabel('Time [sec]')
-        ax.set_title(f'{test_filename} Power', fontweight='bold')
-        # Add the arrival time
+        fig = plt.figure(figsize=(10, 10))
+        ax = plt.subplot(2, 1, 1)
+        ax.plot(tr_times_filt, tr_data_filt)
         if self.prediction.arrival is not None:
             ax.axvline(x = arrival, color='red',label='Rel. Arrival')
         
@@ -208,6 +214,34 @@ class Model:
             #ax.axvline(x=t[time[0]], c='purple', label='Relevant Time')
             ax.axvline(x=t[time[1]], c='purple', label='Relevant Time')
         ax.legend(loc='upper left')
+        
+
+        # Plot the power
+        #ax.plot(t, power)
+        ax2 = plt.subplot(2, 1, 2)
+        vals = ax2.pcolormesh(t, f, sxx, cmap=cm.jet)
+        cbar = plt.colorbar(vals, orientation="horizontal")
+
+        ax2.set_ylabel('Power')
+        ax2.set_xlabel('Time [sec]')
+        ax2.set_title(f'{test_filename} Power', fontweight='bold')
+        # Add the arrival time
+        if self.prediction.arrival is not None:
+            ax2.axvline(x = arrival, color='red',label='Rel. Arrival')
+        
+        #ax.set_ylim([0, 1e-19])
+        # for index in max_index:
+        #     ax.axvline(x = t[index], color='blue',label='Max Power', linestyle='--')
+        for index in variance_index:
+            ax2.axvline(x = t[index], color='orange',label='Max Variance', linestyle='--')
+
+        ax2.axhline(y=threshold, c='green', label='95th Percentile')
+        
+        # Plot the relevant times
+        for time in relevant_times:
+            #ax2.axvline(x=t[time[0]], c='purple', label='Relevant Time')
+            ax2.axvline(x=t[time[1]], c='purple', label='Relevant Time')
+        ax2.legend(loc='upper left')
         # Guardamos la figura
         fig.savefig(f'{test_filename}_power.png')
         plt.close(fig)
