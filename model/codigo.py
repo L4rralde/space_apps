@@ -1,3 +1,7 @@
+"""
+
+"""
+
 import os
 from datetime import datetime, timedelta
 from copy import copy
@@ -19,7 +23,6 @@ def process_data_max(data, window_max, window_filter):
     max_data = np.zeros(len(data))
     for i in range(len(data) - window_max):
         max_data[i] = np.max(data[i:i+window_max])
-    # Aplicamos un filtro de ventana a los maximos
     max_data_filtered = np.zeros(len(data))
     for i in range(len(data) - window_filter):
         max_data_filtered[i] = np.mean(max_data[i:i+window_filter])
@@ -157,6 +160,7 @@ class Model:
         self.prediction.tr_filt = tr_filt
         self.prediction.tr_times_filt = tr_times_filt
         self.prediction.tr_data_filt = tr_data_filt
+        self.prediction.test_filename = os.path.basename(mseed_file)
         return copy(self.prediction)
 
     def transform(self, percentile: float = 0.95) -> "Prediction":
@@ -207,7 +211,11 @@ class Model:
         return copy(self.prediction)
 
     def predict_pipeline(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
-        self.open(mseed_file)
+        try:
+            self.open(mseed_file)
+        except Exception as e:
+            print(e)
+            return
         self.transform(percentile)
         self.get_intervals()
         self.refine_intervals()
