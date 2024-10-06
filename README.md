@@ -1,5 +1,7 @@
 # Quijo-Team
 
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/L4rralde/space_apps/HEAD)
+
 Main algorithm is defined in [class Predictor](https://github.com/L4rralde/space_apps/blob/3470bc01d3bb0343ff75cc123294fa93587a7ab4/model/codigo.py#L139)
 
 It interfaces our apps and scripts via [Prediction](https://github.com/L4rralde/space_apps/blob/3470bc01d3bb0343ff75cc123294fa93587a7ab4/model/codigo.py#L109C7-L109C17) objects, which includes all the information used by all the pipe stages of our algorithm.
