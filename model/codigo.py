@@ -1,8 +1,5 @@
-"""
-
-"""
-
 import os
+import sys
 from datetime import datetime, timedelta
 from copy import copy
 
@@ -120,6 +117,7 @@ class Prediction:
         self.power = None
         self.relevant_times = None
         self.variance_index = None
+        self.min_variance = None
         self.threshold = None
         self.tr_data_filt = None
         self.tr_times_filt = None
@@ -147,7 +145,7 @@ class Model:
         self.prediction = Prediction()
         self._mseed_file: str = ""
 
-    def open(self, mseed_file) -> "Prediction":
+    def open(self, mseed_file, arrival_time=None) -> "Prediction":
         if not os.path.exists(mseed_file):
             raise Exception("NOT SUCH FILE")
         st_filt = read(mseed_file)
@@ -156,6 +154,15 @@ class Model:
         tr_filt = st_filt.traces[0].copy()
         tr_times_filt = tr_filt.times()
         tr_data_filt = tr_filt.data
+
+        # Start time of trace (another way to get the relative arrival time using datetime)
+        starttime = tr_filt.stats.starttime.datetime
+        if arrival_time is not None:
+            arrival = (arrival_time - starttime).total_seconds()
+        else:
+            arrival =  None
+        self.prediction.arrival = arrival
+        
         self.prediction.state = "OPEN"
         self.prediction.tr_filt = tr_filt
         self.prediction.tr_times_filt = tr_times_filt
@@ -202,6 +209,19 @@ class Model:
             3,
             self.prediction.power
         )
+        self.prediction.arrival = None
+        if self.prediction.arrival is not None:
+            variance_diff = [
+                [abs(self.prediction.t[time] - self.prediction.arrival), time]
+                for time in variance_index
+            ]
+            print(variance_diff)
+            self.prediction.min_variance = min(variance_diff)[1]
+        elif variance_index:
+            self.prediction.min_variance = int(self.prediction.t[variance_index[0]])
+        else:
+            self.prediction.min_variance = None
+
         total_points = len(self.prediction.power)
         relevant_points = 0
         for interval in self.prediction.relevant_times:
@@ -212,7 +232,7 @@ class Model:
 
     def predict_pipeline(self, mseed_file, *, arrival_time=None, percentile=95) -> None:
         try:
-            self.open(mseed_file)
+            self.open(mseed_file, arrival_time)
         except Exception as e:
             print(e)
             return
@@ -254,7 +274,6 @@ class Model:
         f, t, sxx = signal.spectrogram(tr_data_filt, tr_filt.stats.sampling_rate, mode='magnitude')
         # Sum over all sxx values to get the power
         power = np.mean(sxx, axis=0)
-
 
         threshold = np.percentile(power, percentile)
 
@@ -351,17 +370,21 @@ class Model:
 if __name__ == "__main__":
     predictor = Model()
     predictor_pipe = Model()
-    if "lunar" in cat_directory:
-        percentile = 95
-    else:
-        percentile = 65
     for i in range(75):
         print(f"{i}/75")
         row = cat.iloc[i]
         arrival_time = datetime.strptime(row['time_abs(%Y-%m-%dT%H:%M:%S.%f)'],'%Y-%m-%dT%H:%M:%S.%f')
         test_filename = row.filename
 
-        mseed_file = f'{data_directory}{test_filename}.mseed'
+        try:
+            mseed_file = os.path.realpath(sys.argv[1])
+            arrival_time = None
+        except:
+            mseed_file = f'{data_directory}{test_filename}.mseed'
+        if "lunar" in mseed_file:
+            percentile = 95
+        else:
+            percentile = 65
         predictor.predict(
             mseed_file, 
             arrival_time=arrival_time,
