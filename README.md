@@ -32,6 +32,27 @@ pip install -r requirements.txt
 Our project has been prepared to run on Binder. By opting this option, it is possible to launch it on a web browser with no need of any prior installation. [Go and try it yourself](https://mybinder.org/v2/gh/L4rralde/space_apps/HEAD).
 
 
+## Get it working
+
+You can have a glance of what our model is able to do by running the following commands:
+
+```sh
+source scripts/set_space.sh 
+python model/codigo.py 
+```
+
+Also, we generate our catalogs with the following script:
+
+```sh
+python utils/evaluate.py <path_to_test_data_dir>
+```
+
+For example
+
+```sh
+python utils/evaluate.py data/lunar/test/data/S12_GradeB/
+```
+
 ### Contributors
 - Alejandro Negrete
 - Emmanuel Larralde
