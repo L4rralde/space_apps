@@ -6,6 +6,10 @@ Main algorithm is defined in [class Predictor](https://github.com/L4rralde/space
 
 It interfaces our apps and scripts via [Prediction](https://github.com/L4rralde/space_apps/blob/3470bc01d3bb0343ff75cc123294fa93587a7ab4/model/codigo.py#L109C7-L109C17) objects, which includes all the information used by all the pipe stages of our algorithm.
 
+## Straight to the results
+
+All our generated catalogs live in `cat_output/`. We only included the *filename* and *relative time* columns. For any concern, don't hesitate to reach out to us!
+
 ## Requirements:
 - Unix-based environment
 - python3 with pip3 up to date.
