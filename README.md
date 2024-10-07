@@ -60,3 +60,9 @@ python utils/evaluate.py data/lunar/test/data/S12_GradeB/
 - Isaac Mauricio
 - Miriam Calderón
 - Ramsses De los Santos
+
+## Appendix: Figures
+
+In the following link you may find some figures depicting some of our results:
+
+https://drive.google.com/drive/folders/19cffZS0iueH8eJUOWy0SD_LZJn_RjgwR?usp=sharing
